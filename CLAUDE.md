@@ -37,6 +37,10 @@ opponent is a normal zoo agent.
   Both are symmetric; victims are LSTM policies.
 - **Victim / opponent:** Zoo1 vs. Zoo1. The victim is agent 0 (true for all Sumo games;
   only YouShallNotPass has the victim at index 1).
+- **Clean baselines are not 50/50** (measured 2026-11-11, no noise): Sumo Humans agent 0 wins
+  ~80–84% (confirmed with the original `aprl.score_agent`: 168/200), so it's a property of the
+  game/agents, not our code. Sumo Ants ≈ 42% victim / 36% opponent / 22% ties. Decision: keep the
+  victim as agent 0 anyway (paper convention) and report the baseline as measured.
 - **Noise:** victim only, every input, fresh every step, independent per input.
 - **Relative σ:** noise on input *i* = σ × stdᵢ × N(0,1). stdᵢ comes from the victim's
   observations in 100 clean games, saved in `results/obs_stats/<env>.json`. Inputs with zero
