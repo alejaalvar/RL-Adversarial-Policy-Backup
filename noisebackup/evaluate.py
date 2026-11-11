@@ -26,7 +26,7 @@ def run_episodes(venv, policies, episodes: int) -> List[Episode]:
     """
     if episodes <= 0:
         raise ValueError(f"episodes must be positive, got {episodes}")
-    shares = _split_evenly(episodes, venv.num_envs)
+    shares = split_evenly(episodes, venv.num_envs)
     results = []
     finished = [0] * venv.num_envs
     steps = [0] * venv.num_envs
@@ -43,7 +43,7 @@ def run_episodes(venv, policies, episodes: int) -> List[Episode]:
     raise AssertionError("simulate() stopped before all episodes finished")
 
 
-def _split_evenly(total: int, parts: int) -> List[int]:
+def split_evenly(total: int, parts: int) -> List[int]:
     """Split `total` into `parts` near-equal shares, the remainder going to the first parts."""
     base, remainder = divmod(total, parts)
     return [base + 1 if i < remainder else base for i in range(parts)]

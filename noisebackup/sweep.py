@@ -8,12 +8,12 @@ import csv
 import datetime
 import json
 from pathlib import Path
-import subprocess
 from typing import Any, Callable, Dict, List, Union
 
 from noisebackup import evaluate, obs_stats
 from noisebackup.evaluate import Episode
 from noisebackup.noise import ObservationNoise
+from noisebackup.records import git_info
 
 Config = Dict[str, Any]
 EvaluateFn = Callable[[Config, float], List[Episode]]
@@ -38,7 +38,7 @@ def run_sweep(config: Config, evaluate_fn: EvaluateFn, out_dir: Union[str, Path]
     _write_json(config_path, config)
     invocation = {
         "started_at": datetime.datetime.now().isoformat(timespec="seconds"),
-        **_git_info(),
+        **git_info(),
         "sigmas_played": [],
     }
     run_info = json.loads(run_info_path.read_text()) if run_info_path.exists() else {}
@@ -112,21 +112,6 @@ def _winner_label(winner, victim_index: int) -> str:
 
 def _write_json(path: Path, data) -> None:
     path.write_text(json.dumps(data, indent=2) + "\n")
-
-
-def _git_info() -> Dict[str, Any]:
-    """Commit of this repo, and whether it had uncommitted changes, when the sweep started."""
-    repo_dir = Path(__file__).resolve().parents[1]
-
-    def git(*args):
-        return subprocess.run(
-            ["git", *args], cwd=repo_dir, stdout=subprocess.PIPE, check=True
-        ).stdout.decode()
-
-    return {
-        "git_commit": git("rev-parse", "HEAD").strip(),
-        "git_dirty": bool(git("status", "--porcelain").strip()),
-    }
 
 
 def main(argv=None) -> None:

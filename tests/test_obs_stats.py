@@ -3,7 +3,8 @@
 import numpy as np
 import pytest
 
-from noisebackup import obs_stats
+from fakes import ScriptedGamesVecMultiEnv, ZeroPolicy
+from noisebackup import evaluate, obs_stats
 
 
 def test_compute_gives_per_input_mean_and_std():
@@ -42,3 +43,28 @@ def test_saved_stats_load_back_exactly_with_their_metadata(tmp_path):
     np.testing.assert_array_equal(loaded.std, stats.std)
     assert loaded.n_samples == 2
     assert loaded_metadata == metadata
+
+
+def test_collect_returns_the_victims_observation_at_every_step_of_its_share_of_games():
+    # Victim (agent 0) always sees [1, 2]; the opponent sees [9]. Game 0's share is one 3-step
+    # game and game 1's is one 5-step game, so 3 + 5 = 8 observations.
+    env = ScriptedGamesVecMultiEnv([[(3, 0)], [(5, None)]], base_obs=([1.0, 2.0], [9.0]))
+
+    observations = obs_stats.collect(env, [ZeroPolicy(), ZeroPolicy()], agent_index=0, episodes=2)
+
+    np.testing.assert_array_equal(observations, np.tile([1.0, 2.0], (8, 1)))
+
+
+@pytest.mark.slow
+def test_collect_from_real_sumo_ants_games_gives_137_victim_inputs_per_step():
+    env_name = "multicomp/SumoAnts-v0"
+    venv = evaluate.make_venv(env_name, num_envs=2, seed=0)
+    try:
+        policies = evaluate.load_policies(venv, env_name, [("zoo", "1"), ("zoo", "1")])
+        observations = obs_stats.collect(venv, policies, agent_index=0, episodes=2)
+    finally:
+        venv.close()
+
+    assert observations.ndim == 2
+    assert observations.shape[1] == 137
+    assert observations.shape[0] > 2  # at least one step per game

@@ -55,11 +55,12 @@ class ScriptedGamesVecMultiEnv(ConstantObsVecMultiEnv):
     `scripts[i]` is a list of (length, winner) pairs for parallel game i, where winner is 0, 1
     or None for a tie. Each game cycles through its script forever, auto-resetting like a real
     VecEnv. The final step of an episode reports the winner in aprl's info format:
-    {agent_index: {"winner": True}} for the winning agent.
+    {agent_index: {"winner": True}} for the winning agent. Observations are constant per agent
+    (`base_obs`, as in ConstantObsVecMultiEnv).
     """
 
-    def __init__(self, scripts):
-        super().__init__([[0.0], [0.0]], num_envs=len(scripts))
+    def __init__(self, scripts, base_obs=([0.0], [0.0])):
+        super().__init__(base_obs, num_envs=len(scripts))
         self.scripts = scripts
         self.episode_in_script = [0] * len(scripts)
         self.step_in_episode = [0] * len(scripts)
