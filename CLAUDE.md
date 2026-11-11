@@ -45,8 +45,11 @@ opponent is a normal zoo agent.
 - **Relative σ:** noise on input *i* = σ × stdᵢ × N(0,1). stdᵢ comes from the victim's
   observations in 100 clean games, saved in `results/obs_stats/<env>.json`. Inputs with zero
   spread get no noise. The defended victim reuses the same stats file, so σ means the same thing
-  for both victims. Raw input spreads range over ~4 orders of magnitude (0.011 to 137 in Ants),
-  which is why σ is relative.
+  for both victims. Raw input spreads range over ~4–5 orders of magnitude, which is why σ is
+  relative. **Frozen stats (measured 2026-11-11, 100 games, seed 100, commit a86585c):**
+  Ants 137 inputs, std 0.0038–127 (median 0.29), none constant; Humans 395 inputs,
+  std 0–109 (median 0.30), 6 constant (these get no noise). Never re-measure without deciding
+  to redo every sweep that used them; the CLI refuses to overwrite.
 - **σ grid:** {0, 0.05, 0.1, 0.25, 0.5, 1, 2}. Fixed before any results; no pilot sweep.
   Any added points must be labeled as follow-up.
 - **Games per point:** 1,000. Each of 8 parallel games plays a fixed share (125) so long games
