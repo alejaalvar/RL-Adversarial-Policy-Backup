@@ -38,7 +38,7 @@ def run_sweep(config: Config, evaluate_fn: EvaluateFn, out_dir: Union[str, Path]
     _write_json(config_path, config)
     invocation = {
         "started_at": datetime.datetime.now().isoformat(timespec="seconds"),
-        **git_info(),
+        **git_info(ignore=out_dir),  # this run's own results aren't "uncommitted code"
         "sigmas_played": [],
     }
     run_info = json.loads(run_info_path.read_text()) if run_info_path.exists() else {}

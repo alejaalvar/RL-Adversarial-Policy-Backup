@@ -79,6 +79,22 @@ def test_config_and_a_record_of_the_run_are_saved_next_to_the_results(tmp_path):
     assert isinstance(invocation["git_dirty"], bool)
 
 
+def test_the_run_s_own_output_folder_is_left_out_of_the_uncommitted_changes_check(
+    tmp_path, monkeypatch
+):
+    calls = []
+
+    def fake_git_info(**kwargs):
+        calls.append(kwargs)
+        return {"git_commit": "0" * 40, "git_dirty": False}
+
+    monkeypatch.setattr(sweep, "git_info", fake_git_info)
+
+    sweep.run_sweep(CONFIG, FakeEvaluator(), tmp_path)
+
+    assert calls == [{"ignore": tmp_path}]
+
+
 class CrashingEvaluator(FakeEvaluator):
     """Like FakeEvaluator, but crashes (e.g. power loss) when asked to play `crash_at`."""
 
