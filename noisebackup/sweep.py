@@ -68,7 +68,7 @@ def run_sweep(config: Config, evaluate_fn: EvaluateFn, out_dir: Union[str, Path]
                         "sigma": sigma,
                         "episode": number,
                         "env_index": episode.env_index,
-                        "winner": _winner_label(episode.winner, config["victim_index"]),
+                        "winner": winner_label(episode.winner, config["victim_index"]),
                         "length": episode.length,
                     }
                 )
@@ -105,7 +105,7 @@ def _finished_sigmas(csv_path: Path) -> set:
         return {float(row["sigma"]) for row in csv.DictReader(f)}
 
 
-def _winner_label(winner, victim_index: int) -> str:
+def winner_label(winner, victim_index: int) -> str:
     """Name the winner from the victim's point of view."""
     if winner is None:
         return "tie"

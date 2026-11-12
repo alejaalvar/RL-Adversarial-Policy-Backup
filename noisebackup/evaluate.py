@@ -79,22 +79,29 @@ def load_policies(
     that randomness is repeatable: agent i's sampling is seeded with seed + i (different per
     agent, so victim and opponent don't draw the same numbers). Without it, every run differs.
     """
-    policies = []
-    for index, (policy_type, policy_path) in enumerate(specs):
-        if seed is None:
-            policies.append(_load_policy(venv, env_name, policy_type, policy_path, index))
-            continue
-        if policy_type not in ("zoo", "finetuned"):
-            raise NotImplementedError(
-                f"seeding is only implemented for zoo and finetuned policies, not {policy_type!r}"
-            )
-        with _seeded_zoo_graph(seed + index) as seeded:
-            policies.append(_load_policy(venv, env_name, policy_type, policy_path, index))
-        if seeded != [True]:
-            raise RuntimeError(
-                "aprl did not build the zoo policy the expected way; seed not applied"
-            )
-    return policies
+    return [
+        load_agent(venv, env_name, spec, index, None if seed is None else seed + index)
+        for index, spec in enumerate(specs)
+    ]
+
+
+def load_agent(venv, env_name: str, spec: Tuple[str, str], index: int, seed: Optional[int]):
+    """Load the policy for agent `index`; spec = (policy_type, policy_path).
+
+    With `seed`, its action sampling is seeded with exactly that value (see load_policies).
+    """
+    policy_type, policy_path = spec
+    if seed is None:
+        return _load_policy(venv, env_name, policy_type, policy_path, index)
+    if policy_type not in ("zoo", "finetuned"):
+        raise NotImplementedError(
+            f"seeding is only implemented for zoo and finetuned policies, not {policy_type!r}"
+        )
+    with _seeded_zoo_graph(seed) as seeded:
+        policy = _load_policy(venv, env_name, policy_type, policy_path, index)
+    if seeded != [True]:
+        raise RuntimeError("aprl did not build the zoo policy the expected way; seed not applied")
+    return policy
 
 
 def _load_policy(venv, env_name: str, policy_type: str, policy_path: str, index: int):
