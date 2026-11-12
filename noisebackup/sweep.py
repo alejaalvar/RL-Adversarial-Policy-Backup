@@ -79,8 +79,10 @@ def run_sweep(config: Config, evaluate_fn: EvaluateFn, out_dir: Union[str, Path]
 def play_sigma(config: Config, sigma: float) -> List[Episode]:
     """Real games: the victim, with noise at `sigma` on its observations, vs. the opponent.
 
-    The game seeds and the noise seed are the same at every sigma, so sigma is the only
-    thing that changes between points.
+    Every source of randomness is seeded from the config, the same at every sigma: the games'
+    starting states and the agents' action sampling (`seed`), and the noise (`noise_seed`).
+    So a config always replays the same games, and sigma is the only setting that differs
+    between points (the games still diverge once the noise changes an action).
     """
     stats, _ = obs_stats.load(config["obs_stats"])
     victim_index = config["victim_index"]
@@ -91,7 +93,7 @@ def play_sigma(config: Config, sigma: float) -> List[Episode]:
     venv = evaluate.make_venv(config["env_name"], config["num_envs"], config["seed"])
     try:
         venv = ObservationNoise(venv, victim_index, stats.std, sigma, config["noise_seed"])
-        policies = evaluate.load_policies(venv, config["env_name"], specs)
+        policies = evaluate.load_policies(venv, config["env_name"], specs, seed=config["seed"])
         return evaluate.run_episodes(venv, policies, config["episodes"])
     finally:
         venv.close()

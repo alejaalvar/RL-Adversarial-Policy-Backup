@@ -148,3 +148,7 @@ def test_tiny_real_sumo_ants_sweep_records_every_game(tmp_path):
     assert [r["sigma"] for r in rows] == ["0.0"] * 4 + ["0.5"] * 4
     assert {r["winner"] for r in rows} <= {"victim", "opponent", "tie"}
     assert all(int(r["length"]) > 0 for r in rows)
+
+    # Same config -> the very same games: the whole run is reproducible from config.json.
+    sweep.run_sweep(config, sweep.play_sigma, tmp_path / "again")
+    assert read_rows(tmp_path / "again") == rows

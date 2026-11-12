@@ -54,6 +54,10 @@ opponent is a normal zoo agent.
   Any added points must be labeled as follow-up.
 - **Games per point:** 1,000. Each of 8 parallel games plays a fixed share (125) so long games
   aren't dropped at the cutoff. Game seeds are the same at every σ; noise has its own seed.
+  Zoo agents *sample* their actions (as in the paper); that sampling is seeded too
+  (`seed` + agent index, via `evaluate.load_policies(seed=...)`), so a config replays the
+  exact same games. Found 2026-11-11: before this, two identical Ants sweeps differed game by
+  game (but agreed within sampling error); those results were discarded and re-run.
 - **Metric:** victim win rate = wins ÷ all games (ties are non-wins), Wilson 95% intervals,
   plus a separate tie-rate panel.
 - **Results:** `results/<run_name>/episodes.csv`, one row per game, plus the config and a

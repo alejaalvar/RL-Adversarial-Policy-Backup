@@ -73,3 +73,27 @@ def test_real_sumo_ants_match_with_noise_plays_fixed_shares():
     assert dict(collections.Counter(e.env_index for e in results)) == {0: 2, 1: 2}
     assert all(e.winner in (0, 1, None) for e in results)
     assert all(e.length > 0 for e in results)
+
+
+def play_real_ants_games(policy_seed):
+    """4 real Sumo Ants games (fixed game seed), zoo agents' action sampling seeded."""
+    env_name = "multicomp/SumoAnts-v0"
+    venv = evaluate.make_venv(env_name, num_envs=2, seed=0)
+    try:
+        policies = evaluate.load_policies(
+            venv, env_name, [("zoo", "1"), ("zoo", "1")], seed=policy_seed
+        )
+        return evaluate.run_episodes(venv, policies, episodes=4)
+    finally:
+        venv.close()
+
+
+@pytest.mark.slow
+def test_same_seed_replays_the_same_games_even_though_actions_are_sampled():
+    # Zoo agents sample each action at random (as in the paper); the seed makes it repeatable.
+    first = play_real_ants_games(policy_seed=0)
+    again = play_real_ants_games(policy_seed=0)
+    other = play_real_ants_games(policy_seed=1)
+
+    assert first == again
+    assert first != other  # the seed really controls the sampling

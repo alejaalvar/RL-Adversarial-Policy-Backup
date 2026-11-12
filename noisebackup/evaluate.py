@@ -1,8 +1,11 @@
 """Play games between two policies and record the outcome of each one."""
 
+import contextlib
 import functools
 from typing import List, NamedTuple, Optional, Sequence, Tuple
+from unittest import mock
 
+from aprl.envs import gym_compete as aprl_gym_compete
 from aprl.envs.gym_compete import game_outcome
 from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_multi_env
 from aprl.envs.wrappers import make_env, simulate
@@ -61,9 +64,51 @@ def make_venv(env_name: str, num_envs: int, seed: int):
     return make_dummy_vec_multi_env(env_fns)
 
 
-def load_policies(venv, env_name: str, specs: Sequence[Tuple[str, str]]) -> list:
-    """Load one policy per agent; specs[i] = (policy_type, policy_path), e.g. ("zoo", "1")."""
-    return [
-        load_policy(policy_type, policy_path, venv, env_name, index)
-        for index, (policy_type, policy_path) in enumerate(specs)
-    ]
+def load_policies(
+    venv, env_name: str, specs: Sequence[Tuple[str, str]], seed: Optional[int] = None
+) -> list:
+    """Load one policy per agent; specs[i] = (policy_type, policy_path), e.g. ("zoo", "1").
+
+    Zoo agents pick each action at random from their policy (as in the paper). With `seed`,
+    that randomness is repeatable: agent i's sampling is seeded with seed + i (different per
+    agent, so victim and opponent don't draw the same numbers). Without it, every run differs.
+    """
+    if seed is None:
+        return [
+            load_policy(policy_type, policy_path, venv, env_name, index)
+            for index, (policy_type, policy_path) in enumerate(specs)
+        ]
+    policies = []
+    for index, (policy_type, policy_path) in enumerate(specs):
+        if policy_type != "zoo":
+            raise NotImplementedError(
+                f"seeding is only implemented for zoo policies, not {policy_type!r}"
+            )
+        with _seeded_zoo_graph(seed + index) as seeded:
+            policies.append(load_policy(policy_type, policy_path, venv, env_name, index))
+        if seeded != [True]:
+            raise RuntimeError(
+                "aprl did not build the zoo policy the expected way; seed not applied"
+            )
+    return policies
+
+
+@contextlib.contextmanager
+def _seeded_zoo_graph(seed: int):
+    """While active, the TF graph aprl builds a zoo policy in gets a fixed random seed.
+
+    aprl's load_zoo_agent creates a fresh tf.Graph, then calls make_session(graph) *before*
+    building the network, so that call is where we can seed the graph. Every random op built
+    in it (including the action sampling) then has a fixed seed. Yields a list that gets one
+    True per seeded graph, so the caller can check the hook was actually used.
+    """
+    seeded = []
+    original = aprl_gym_compete.make_session
+
+    def make_seeded_session(graph=None):
+        graph.seed = seed
+        seeded.append(True)
+        return original(graph)
+
+    with mock.patch.object(aprl_gym_compete, "make_session", make_seeded_session):
+        yield seeded
