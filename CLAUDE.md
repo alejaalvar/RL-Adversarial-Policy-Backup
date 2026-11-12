@@ -82,8 +82,10 @@ fill it in. If it isn't filled in before a full sweep, stop and remind them.
 
 ## How to work in this repo
 
-- **Everything runs in Docker** via `./run.sh` (image
-  `docker.io/humancompatibleai/adversarial_policies:latest`, Python 3.7). Use the image's
+- **Everything runs in the container** via `./run.sh` (podman required, not Docker: the image
+  can't run as non-root and Docker would leave root-owned files; image
+  `docker.io/humancompatibleai/adversarial_policies`, pinned by digest in `run.sh`, Python 3.7).
+  `./reproduce_attack.sh` re-runs the round-1 sweeps from their saved configs. Use the image's
   *installed* `aprl`; do not `pip install -e` a clone of the original repo, which differs
   from the image's copy in 28 files. Read the image's copy before relying on an interface.
 - **No Sacred.** Our scripts use JSON configs plus a few CLI flags.
