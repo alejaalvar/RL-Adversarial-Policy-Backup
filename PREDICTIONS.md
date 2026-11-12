@@ -126,7 +126,7 @@ Your best single guess for each cell, in %.
 
 | σ | 0 | 0.05 | 0.1 | 0.25 | 0.5 | 1 | 2 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Sumo Ants (defended) | 45%| 45%|| 45%| 44%| 41%| 30%|
+| Sumo Ants (defended) | 45%| 45%|45%| 44%| 41%| 30%| 14%|
 | Sumo Humans (defended) | 80%| 80%| 79%| 76%| 68%| 35%| 4%|
 
 ### P8. Control victim's win rate at each σ
