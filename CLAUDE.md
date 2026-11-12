@@ -70,9 +70,34 @@ opponent is a normal zoo agent.
 Round 1 (attack): scaffold → obs_stats → noise → evaluate → sweep → plot → measure real obs
 stats → predictions → full sweeps (Ants, then Humans) → figure.
 
-Round 2 (defense), after its own design session: fine-tune a copy of the Zoo1 victim
-(not from scratch) with noise on its observations, re-run the same sweep including σ = 0,
-plot original vs. defended.
+Round 1 is done (2026-11-11): `results/{ants,humans}_zoo1_original/`, `figures/attack_sweep.png`.
+
+### Round 2: defense (grilling session, 2026-11-12)
+
+- **What:** fine-tune a copy of Zoo1 (agent 0, starting from its weights) in both games against
+  the frozen Zoo1 opponent, which **samples** its actions as in the sweep (aprl.train makes it
+  deterministic; we don't use aprl.train). Own script `noisebackup/finetune.py`, no Sacred.
+- **Variants (4 runs):** `defended`: σ ~ Uniform[0, 1] drawn per game, per parallel game, with the
+  same frozen obs stats; `finetuned_clean` (control): σ = 0, otherwise identical.
+- **Reward:** win/loss only (paper's sparse reward 0.01 × ±1000), reward normalization
+  (VecNormalize norm_obs=False; the zoo policy normalizes observations internally, frozen).
+- **PPO2:** paper preset `finetune_defense` but 10M steps: 16 envs, batch 16,384, lr 3e-4,
+  ent_coef 0, nminibatches 4, noptepochs 4, clip 0.2, γ 0.99, λ 0.95.
+- **Seeds:** training games 1000, training noise 1001 (sweep: 0 / 1). Best-effort training
+  seeding; training need not be bit-identical; **committed weights are canonical**.
+- **Weights:** zoo format (flat float32 vector like `agent_parameters-v1.pkl`), in
+  `models/<run_name>/weights.pkl` + `training_info.json` + `training_episodes.csv` (per-game
+  step, σ, winner, length). Evaluated through aprl's zoo loader path (victim type `"finetuned"`),
+  so the round-1 seeding hook and any num_envs work. Only the final 10M-step weights are
+  evaluated; checkpoints go to `results/scratch/` and are never evaluated.
+- **Evaluation:** the round-1 sweep unchanged; labels `defended` / `finetuned_clean`. Figures:
+  `figures/defense_sweep.png` (Zoo1 + defended + control) and `figures/training_curves.png`.
+  `reproduce_defense.sh` re-runs the sweeps from committed weights (re-training is optional).
+- **TDD seams (added):** ObservationNoise per-game σ range; `weights` save/load round trip;
+  finetune tiny real run (lr = 0 → weights equal Zoo1 exactly); `load_policies` with a
+  `"finetuned"` victim (Zoo1 saved as finetuned reproduces Zoo1's games); learning-curve summary.
+- **Order:** predictions Part 2 → noise σ range → weights → evaluate finetuned → finetune
+  script + configs → timing run → 4 trainings → 4 sweeps + figures → reproduce script + docs.
 
 ## Predictions
 
