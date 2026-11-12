@@ -1,0 +1,29 @@
+{
+  "run_name": "humans_zoo1_original",
+  "threat_model": "direct observation: Gaussian noise added to the victim's observations",
+  "env_name": "multicomp/SumoHumans-v0",
+  "victim": {
+    "label": "zoo1",
+    "type": "zoo",
+    "path": "1"
+  },
+  "opponent": {
+    "type": "zoo",
+    "path": "1"
+  },
+  "victim_index": 0,
+  "obs_stats": "results/obs_stats/SumoHumans.json",
+  "sigmas": [
+    0.0,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.0
+  ],
+  "episodes": 1000,
+  "num_envs": 8,
+  "seed": 0,
+  "noise_seed": 1
+}

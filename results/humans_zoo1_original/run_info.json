@@ -1,0 +1,18 @@
+{
+  "invocations": [
+    {
+      "started_at": "2026-11-12T07:37:33",
+      "git_commit": "b0adf507ed221d07fc1bafaeb275aa5fe8a6f8e1",
+      "git_dirty": false,
+      "sigmas_played": [
+        0.0,
+        0.05,
+        0.1,
+        0.25,
+        0.5,
+        1.0,
+        2.0
+      ]
+    }
+  ]
+}
