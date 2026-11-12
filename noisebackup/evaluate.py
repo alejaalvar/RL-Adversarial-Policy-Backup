@@ -11,6 +11,8 @@ from aprl.envs.multi_agent import make_dummy_vec_multi_env, make_subproc_vec_mul
 from aprl.envs.wrappers import make_env, simulate
 from aprl.policies.loader import load_policy
 
+from noisebackup import weights
+
 
 class Episode(NamedTuple):
     """Outcome of one finished game."""
@@ -69,28 +71,60 @@ def load_policies(
 ) -> list:
     """Load one policy per agent; specs[i] = (policy_type, policy_path), e.g. ("zoo", "1").
 
+    Policy type "finetuned" is a fine-tuned victim: path to a Zoo-format weights file (see
+    noisebackup.weights). It is built by aprl's own Zoo-agent code with those weights, so it is
+    evaluated exactly like an original Zoo agent.
+
     Zoo agents pick each action at random from their policy (as in the paper). With `seed`,
     that randomness is repeatable: agent i's sampling is seeded with seed + i (different per
     agent, so victim and opponent don't draw the same numbers). Without it, every run differs.
     """
-    if seed is None:
-        return [
-            load_policy(policy_type, policy_path, venv, env_name, index)
-            for index, (policy_type, policy_path) in enumerate(specs)
-        ]
     policies = []
     for index, (policy_type, policy_path) in enumerate(specs):
-        if policy_type != "zoo":
+        if seed is None:
+            policies.append(_load_policy(venv, env_name, policy_type, policy_path, index))
+            continue
+        if policy_type not in ("zoo", "finetuned"):
             raise NotImplementedError(
-                f"seeding is only implemented for zoo policies, not {policy_type!r}"
+                f"seeding is only implemented for zoo and finetuned policies, not {policy_type!r}"
             )
         with _seeded_zoo_graph(seed + index) as seeded:
-            policies.append(load_policy(policy_type, policy_path, venv, env_name, index))
+            policies.append(_load_policy(venv, env_name, policy_type, policy_path, index))
         if seeded != [True]:
             raise RuntimeError(
                 "aprl did not build the zoo policy the expected way; seed not applied"
             )
     return policies
+
+
+def _load_policy(venv, env_name: str, policy_type: str, policy_path: str, index: int):
+    if policy_type != "finetuned":
+        return load_policy(policy_type, policy_path, venv, env_name, index)
+    params = weights.load(policy_path)
+    with _zoo_params(params) as used:
+        policy = load_policy("zoo", "finetuned", venv, env_name, index)
+    if used != [True]:
+        raise RuntimeError("aprl did not load the zoo policy the expected way; weights not used")
+    return policy
+
+
+@contextlib.contextmanager
+def _zoo_params(params):
+    """While active, aprl's Zoo-agent loader uses `params` instead of a packaged Zoo file.
+
+    load_zoo_agent(tag, ...) gets its weights from load_zoo_agent_params(tag, ...) and then
+    builds and restores the policy; swapping only that lookup means everything else (network,
+    observation normalization, session, our seeding hook) is exactly as for an original Zoo
+    agent. Yields a list that gets one True per use, so the caller can check it was used.
+    """
+    used = []
+
+    def fine_tuned_params(tag, env_name, index):
+        used.append(True)
+        return params
+
+    with mock.patch.object(aprl_gym_compete, "load_zoo_agent_params", fine_tuned_params):
+        yield used
 
 
 @contextlib.contextmanager

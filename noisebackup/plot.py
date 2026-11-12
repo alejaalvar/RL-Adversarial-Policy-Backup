@@ -19,10 +19,17 @@ ENV_TITLES = {
 
 # Color follows the victim, never its position in the data. Dashes and marker shapes repeat
 # the distinction for grayscale printing. Colors pass the dataviz palette validator
-# (colorblind-safe, >= 3:1 contrast on white).
+# (colorblind-safe); the aqua is just under 3:1 contrast on white, which is allowed because the
+# line style, marker, legend and summary CSV identify it too.
 VICTIM_STYLES = {
     "zoo1": {"color": "#2a78d6", "linestyle": "-", "marker": "o", "label": "original (Zoo1)"},
     "defended": {"color": "#eb6834", "linestyle": "--", "marker": "s", "label": "noise-trained"},
+    "finetuned_clean": {
+        "color": "#1baf7a",
+        "linestyle": "-.",
+        "marker": "^",
+        "label": "clean-fine-tuned (control)",
+    },
 }
 
 INK = "#0b0b0b"

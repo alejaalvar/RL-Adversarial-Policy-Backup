@@ -2,11 +2,12 @@
 
 import collections
 
+from aprl.envs.gym_compete import load_zoo_agent_params
 import numpy as np
 import pytest
 
 from fakes import ScriptedGamesVecMultiEnv, ZeroPolicy
-from noisebackup import evaluate
+from noisebackup import evaluate, weights
 from noisebackup.noise import ObservationNoise
 
 POLICIES = [ZeroPolicy(), ZeroPolicy()]
@@ -75,14 +76,12 @@ def test_real_sumo_ants_match_with_noise_plays_fixed_shares():
     assert all(e.length > 0 for e in results)
 
 
-def play_real_ants_games(policy_seed):
-    """4 real Sumo Ants games (fixed game seed), zoo agents' action sampling seeded."""
+def play_real_ants_games(policy_seed, specs=(("zoo", "1"), ("zoo", "1"))):
+    """4 real Sumo Ants games (fixed game seed), agents' action sampling seeded."""
     env_name = "multicomp/SumoAnts-v0"
     venv = evaluate.make_venv(env_name, num_envs=2, seed=0)
     try:
-        policies = evaluate.load_policies(
-            venv, env_name, [("zoo", "1"), ("zoo", "1")], seed=policy_seed
-        )
+        policies = evaluate.load_policies(venv, env_name, list(specs), seed=policy_seed)
         return evaluate.run_episodes(venv, policies, episodes=4)
     finally:
         venv.close()
@@ -97,3 +96,20 @@ def test_same_seed_replays_the_same_games_even_though_actions_are_sampled():
 
     assert first == again
     assert first != other  # the seed really controls the sampling
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("zoo_version", ["1", "2"])
+def test_a_finetuned_victim_file_is_played_exactly_like_the_zoo_agent_it_holds(
+    tmp_path, zoo_version
+):
+    # A "finetuned" victim is built by aprl's own Zoo-agent code with its weights read from our
+    # file, so Zoo weights saved to a file must replay exactly that Zoo agent's games. Version 2
+    # shows the file is really used (a loader that ignored it would play Zoo1's games).
+    path = tmp_path / "weights.pkl"
+    weights.save(load_zoo_agent_params(zoo_version, "multicomp/SumoAnts-v0", 0), path)
+
+    from_file = play_real_ants_games(0, specs=[("finetuned", str(path)), ("zoo", "1")])
+    original = play_real_ants_games(0, specs=[("zoo", zoo_version), ("zoo", "1")])
+
+    assert from_file == original
