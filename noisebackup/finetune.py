@@ -20,10 +20,12 @@ from unittest import mock
 from aprl.envs.gym_compete import game_outcome, get_policy_type_for_zoo_agent, load_zoo_agent_params
 from aprl.envs.multi_agent import FlattenSingletonVecEnv, VecMultiWrapper
 from aprl.training.embedded_agents import CurryVecEnv
+from gym_compete import policy as gym_compete_policy
 import numpy as np
 from stable_baselines import PPO2
 from stable_baselines.common import tf_util
 from stable_baselines.common.vec_env import VecEnvWrapper, VecNormalize
+import tensorflow as tf
 
 from noisebackup import evaluate, obs_stats, weights
 from noisebackup.noise import ObservationNoise
@@ -37,7 +39,8 @@ def make_training_env(config, log_path):
     """The single-agent environment PPO trains the victim in.
 
     Parallel two-player games -> noise on the victim's observations -> per-game training log
-    -> the frozen opponent plays its seat -> a plain single-agent VecEnv of the victim's view.
+    -> the frozen opponent plays its seat -> a plain single-agent VecEnv of the victim's view
+    -> win/loss reward only -> PPO's usual reward scaling.
     """
     victim_index = config["victim_index"]
     opponent_index = 1 - victim_index
@@ -57,7 +60,11 @@ def make_training_env(config, log_path):
     )
     # deterministic=False: the opponent samples its actions, as in the evaluation sweep.
     venv = CurryVecEnv(log, opponent, agent_idx=opponent_index, deterministic=False)
-    return FlattenSingletonVecEnv(venv)
+    venv = FlattenSingletonVecEnv(venv)
+    # Win/loss reward only (the paper's sparse reward), then PPO's usual reward scaling. The
+    # Zoo policy normalizes its own observations, so VecNormalize must leave them alone.
+    venv = SparseReward(venv, victim_index)
+    return VecNormalize(venv, norm_obs=False, gamma=config["ppo"]["gamma"])
 
 
 def run(config, out_dir) -> None:
@@ -68,37 +75,8 @@ def run(config, out_dir) -> None:
     provenance = git_info(ignore=out_dir)
     out_dir.mkdir(parents=True)
 
-    ppo = config["ppo"]
-    env_name, victim_index = config["env_name"], config["victim_index"]
     venv = make_training_env(config, out_dir / "training_episodes.csv")
-    # Win/loss reward only (the paper's sparse reward), then PPO's usual reward scaling. The
-    # Zoo policy normalizes its own observations, so VecNormalize must leave them alone.
-    venv = SparseReward(venv, victim_index)
-    venv = VecNormalize(venv, norm_obs=False, gamma=ppo["gamma"])
-
-    policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name, transparent_params=None)
-    with _seeded_ppo_graph(config["seed"]) as seeded:
-        model = PPO2(
-            policy=policy_cls,
-            env=venv,
-            n_steps=ppo["batch_size"] // config["num_envs"],
-            nminibatches=ppo["nminibatches"],
-            noptepochs=ppo["noptepochs"],
-            learning_rate=ppo["learning_rate"],
-            ent_coef=ppo["ent_coef"],
-            cliprange=ppo["cliprange"],
-            gamma=ppo["gamma"],
-            lam=ppo["lam"],
-            policy_kwargs=policy_kwargs,
-            verbose=1,
-        )
-    if seeded != [True]:
-        raise RuntimeError("stable-baselines did not build PPO2 the expected way; seed not applied")
-    # Start from the victim's pretrained weights (as aprl.train does for Zoo fine-tuning; the
-    # training model shares these variables).
-    if config["victim"]["type"] != "zoo":
-        raise ValueError("fine-tuning starts from a Zoo victim, e.g. {'type': 'zoo', 'path': '1'}")
-    model.act_model.restore(load_zoo_agent_params(config["victim"]["path"], env_name, victim_index))
+    model = make_model(config, venv)
 
     start = time.time()
     model.learn(total_timesteps=config["total_timesteps"], seed=config["seed"])
@@ -117,6 +95,41 @@ def run(config, out_dir) -> None:
     (out_dir / "training_info.json").write_text(json.dumps(info, indent=2) + "\n")
     venv.close()
     model.sess.close()
+
+
+def make_model(config, venv) -> PPO2:
+    """PPO2 with the configured settings, in a seeded graph, starting from the Zoo victim's
+    pretrained weights."""
+    ppo = config["ppo"]
+    env_name, victim_index = config["env_name"], config["victim_index"]
+    policy_cls, policy_kwargs = get_policy_type_for_zoo_agent(env_name, transparent_params=None)
+    with _seeded_ppo_graph(config["seed"]) as seeded, _game_major_lstm_outputs() as fixed:
+        model = PPO2(
+            policy=policy_cls,
+            env=venv,
+            n_steps=ppo["batch_size"] // config["num_envs"],
+            nminibatches=ppo["nminibatches"],
+            noptepochs=ppo["noptepochs"],
+            learning_rate=ppo["learning_rate"],
+            ent_coef=ppo["ent_coef"],
+            cliprange=ppo["cliprange"],
+            gamma=ppo["gamma"],
+            lam=ppo["lam"],
+            policy_kwargs=policy_kwargs,
+            verbose=1,
+        )
+    if seeded != [True]:
+        raise RuntimeError("stable-baselines did not build PPO2 the expected way; seed not applied")
+    if not fixed:
+        raise RuntimeError(
+            "gym_compete's LSTM was not built the expected way; output fix not applied"
+        )
+    # Start from the victim's pretrained weights (as aprl.train does for Zoo fine-tuning; the
+    # training model shares these variables).
+    if config["victim"]["type"] != "zoo":
+        raise ValueError("fine-tuning starts from a Zoo victim, e.g. {'type': 'zoo', 'path': '1'}")
+    model.act_model.restore(load_zoo_agent_params(config["victim"]["path"], env_name, victim_index))
+    return model
 
 
 def _policy_params(model) -> np.ndarray:
@@ -143,6 +156,30 @@ def _seeded_ppo_graph(seed: int):
 
     with mock.patch.object(tf_util, "make_session", make_seeded_session):
         yield seeded
+
+
+@contextlib.contextmanager
+def _game_major_lstm_outputs():
+    """While active, gym_compete's LSTMPolicy returns its outputs in the order PPO expects.
+
+    Fixes a bug in gym_compete/policy.py (LSTMPolicy). PPO feeds a batch of several games game
+    by game (game 1's steps, then game 2's, ...). The LSTM reads it that way, but stacks its
+    outputs time step by time step (step 1 of every game, then step 2, ...) and flattens them
+    with seq_to_batch without transposing back. So whenever a PPO minibatch holds more than one
+    game, each action is scored against another game's output: approxkl ~1000 before any
+    learning. Playing (one step at a time) is unaffected; this only changes the training graph.
+
+    Yields a list that gets one True per patched call, so the caller can check it was used.
+    """
+    fixed = []
+
+    def game_major_seq_to_batch(outputs):
+        # outputs: [n_steps, n_games, n_hidden] -> rows ordered game by game, as PPO's batch.
+        fixed.append(True)
+        return tf.reshape(tf.transpose(outputs, (1, 0, 2)), [-1, outputs.shape[-1].value])
+
+    with mock.patch.object(gym_compete_policy, "seq_to_batch", game_major_seq_to_batch):
+        yield fixed
 
 
 class SparseReward(VecEnvWrapper):

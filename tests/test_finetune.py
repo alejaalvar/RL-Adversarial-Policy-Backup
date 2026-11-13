@@ -99,6 +99,33 @@ def test_with_learning_rate_zero_the_saved_weights_are_exactly_zoo1(tmp_path):
     )
 
 
+@pytest.mark.slow
+def test_before_any_learning_ppo_s_training_copy_agrees_with_the_copy_that_played(tmp_path):
+    # PPO compares how likely each played action is under the policy being trained vs. the
+    # policy that played it (approxkl). With learning rate 0 the two have identical weights, so
+    # they must agree (approxkl ~ 0, nothing clipped). The first 10M-step runs had approxkl
+    # ~900 and clipfrac 0.998 from update 1, which turned training into a random walk.
+    # nminibatches=2: each minibatch holds 2 of the 4 games, as in the real runs (4 of 16);
+    # the mismatch only shows up when a minibatch holds more than one game.
+    config = dict(TINY, ppo=dict(TINY["ppo"], learning_rate=0.0, nminibatches=2))
+    venv = finetune.make_training_env(config, log_path=tmp_path / "log.csv")
+    losses = []
+    try:
+        model = finetune.make_model(config, venv)
+        model.learn(
+            total_timesteps=config["ppo"]["batch_size"],
+            callback=lambda local, _: losses.append(
+                dict(zip(model.loss_names, local["loss_vals"]))
+            ),
+        )
+    finally:
+        venv.close()
+
+    assert len(losses) == 1
+    assert losses[0]["approxkl"] < 1e-6
+    assert losses[0]["clipfrac"] == 0.0
+
+
 def test_refuses_to_train_into_an_existing_model_folder(tmp_path):
     existing = tmp_path / "model"
     existing.mkdir()
