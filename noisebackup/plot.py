@@ -118,7 +118,7 @@ def draw(summary: pd.DataFrame, out_path: Path) -> None:
         tie_ax.set_xlabel("noise level σ (× each input's clean std)", color=SECONDARY_INK)
         for ax in (win_ax, tie_ax):
             ax.yaxis.set_major_formatter(PercentFormatter(1.0, decimals=0))
-            _style_axes(ax)
+            style_axes(ax)
         win_ax.tick_params(labelbottom=False)
         if col == 0:
             win_ax.set_ylabel("victim win rate", color=SECONDARY_INK)
@@ -155,7 +155,7 @@ def draw(summary: pd.DataFrame, out_path: Path) -> None:
     fig.savefig(out_path, facecolor="white")
 
 
-def _style_axes(ax) -> None:
+def style_axes(ax) -> None:
     """Recessive axes: hairline grid, no top/right spines, muted ticks."""
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
