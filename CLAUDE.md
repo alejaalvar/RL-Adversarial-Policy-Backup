@@ -99,6 +99,26 @@ Round 1 is done (2026-11-11): `results/{ants,humans}_zoo1_original/`, `figures/a
 - **Order:** predictions Part 2 → noise σ range → weights → evaluate finetuned → finetune
   script + configs → timing run → 4 trainings → 4 sweeps + figures → reproduce script + docs.
 
+Round 2 is done (2026-11-16): `models/<run>/` trained at 3d84a9e, sweeps in
+`results/{ants,humans}_{defended,finetuned_clean}/` at 36c52dc (all `git_dirty: false`),
+`figures/defense_sweep.png`, `figures/training_curves.png`, `./reproduce_defense.sh`.
+
+**Found during round 2 (2026-11-12/13):**
+- **gym_compete LSTM output-order bug.** `gym_compete.policy.LSTMPolicy` reads PPO's batch game
+  by game but returns outputs time-step-major (`outputs_ta.stack()` → `seq_to_batch`, no
+  transpose), so with more than one game per PPO minibatch every action was scored against
+  another game's output: approxkl ~1,000 and clipfrac 0.998 from update 1, and the first 10M-step
+  trainings collapsed (Humans victim 80% → 0% wins). Fixed by `finetune._game_major_lstm_outputs`
+  (patches `seq_to_batch` while PPO2 is built); guarded by the lr = 0 test that the first update
+  has approxkl ≈ 0 with 2 games per minibatch. Acting (n_steps = 1) is unaffected, so round 1
+  and all opponents are fine. The broken models are kept, untracked, in
+  `results/scratch/models_lstm_order_bug/`. When fine-tuning any zoo LSTM, always watch
+  approxkl/clipfrac on the first updates.
+- **`git_dirty` rule.** Dirty = any change to a tracked file, or any new untracked file outside
+  `models/` and `results/` (`records.OUTPUT_FOLDERS`); a run's own output folder is ignored
+  entirely. Before this, back-to-back runs saw each other's new output folders and recorded
+  dirty with unchanged code.
+
 ## Predictions
 
 Must be written before running the full experiments, in `PREDICTIONS.md`, dated, and never
@@ -110,7 +130,8 @@ fill it in. If it isn't filled in before a full sweep, stop and remind them.
 - **Everything runs in the container** via `./run.sh` (podman required, not Docker: the image
   can't run as non-root and Docker would leave root-owned files; image
   `docker.io/humancompatibleai/adversarial_policies`, pinned by digest in `run.sh`, Python 3.7).
-  `./reproduce_attack.sh` re-runs the round-1 sweeps from their saved configs. Use the image's
+  `./reproduce_attack.sh` and `./reproduce_defense.sh` re-run the round-1 and round-2 sweeps
+  from their saved configs (round 2 from the committed weights, no re-training). Use the image's
   *installed* `aprl`; do not `pip install -e` a clone of the original repo, which differs
   from the image's copy in 28 files. Read the image's copy before relying on an interface.
 - **No Sacred.** Our scripts use JSON configs plus a few CLI flags.
@@ -121,7 +142,9 @@ fill it in. If it isn't filled in before a full sweep, stop and remind them.
   so it is not used here.
 - **TDD:** red → green, one slice at a time, tests only at the agreed seams:
   `noise.ObservationNoise`, `obs_stats.compute` + save/load, `evaluate.run_episodes`,
-  `sweep.run_sweep`, `plot.summarize`. Real-game tests are marked `@pytest.mark.slow`.
+  `sweep.run_sweep`, `plot.summarize`, `records.git_info`, `weights`, `evaluate.load_policies`
+  (finetuned), `finetune` (tiny real runs, lr = 0, approxkl), `training_curves.summarize` /
+  `load_run`. Real-game tests are marked `@pytest.mark.slow`.
 - **Style:** black + isort + flake8 at 100 columns; `./run.sh lint` must be clean.
 - **Commits:** Claude never commits. Stop after each slice with a summary and test output;
   the students review and commit. No PRs and no CI; tests run locally before each commit.

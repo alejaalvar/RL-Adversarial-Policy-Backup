@@ -69,26 +69,34 @@ key into it, and runs the command inside. Nothing to mount or configure by hand.
 ## Reproduce our results
 
 ```bash
-./reproduce_attack.sh
+./reproduce_attack.sh    # round 1: the original Zoo1 victims under noise (~25 min)
+./reproduce_defense.sh   # round 2: the fine-tuned victims under noise (~45 min)
 ```
 
-This re-runs both attack sweeps (7 noise levels × 1,000 games each, for Sumo Ants and Sumo
-Humans) and draws the figure. It takes about 25 minutes on an 8-core CPU (longer with fewer
-cores). If it's interrupted, run it again and it continues where it stopped. TensorFlow prints
-a few `WARNING:tensorflow: ... is deprecated` lines along the way; they're harmless.
+- **`reproduce_attack.sh`** re-runs both attack sweeps (7 noise levels × 1,000 games each, for
+  Sumo Ants and Sumo Humans) and draws the figure. Compare
+  `results/scratch/reproduce/attack_sweep.png` with the committed `figures/attack_sweep.png`.
+- **`reproduce_defense.sh`** re-runs the four defense sweeps (noise-trained and
+  clean-fine-tuned victims, both games) from the **committed weights** in `models/`, and redraws
+  both round-2 figures. Compare `results/scratch/reproduce/defense_sweep.png` and
+  `training_curves.png` with the committed ones in `figures/`. It does not re-train the
+  victims (about 5 hours); see [Re-train the defended victims](#re-train-the-defended-victims-optional).
 
-Then compare `results/scratch/reproduce/attack_sweep.png` with the committed
-`figures/attack_sweep.png`. The exact numbers are in the `.csv` next to each figure.
+Times are for an 8-core CPU (longer with fewer cores). If a script is interrupted, run it
+again and it continues where it stopped. TensorFlow prints a few
+`WARNING:tensorflow: ... is deprecated` lines along the way; they're harmless. The exact
+numbers are in the `.csv` next to each figure.
 
-What it does:
+What the scripts do:
 - **Uses the committed settings.** Each sweep re-runs from the config saved next to the
   committed results (`results/<run>/config.json`), not from `configs/`, so later edits to
   `configs/` can't change what is being reproduced.
 - **Never touches the committed results.** Its output goes to `results/scratch/reproduce/`,
   which git ignores.
 - **Warns about code changes.** If the experiment code (`noisebackup/`) or the noise scales
-  (`results/obs_stats/`) have changed since the commit that produced the committed results,
-  it prints a warning and the `git checkout` command for an exact reproduction.
+  (`results/obs_stats/`), or for the defense the victim weights (`models/`), have changed
+  since the commit that produced the committed results, it prints a warning and the
+  `git checkout` command for an exact reproduction.
 
 **Expect exactly the same games on the same machine, and the same results within error on a
 different one.** Every source of randomness is seeded: starting positions, the agents' action
@@ -119,10 +127,15 @@ This writes `results/<run_name>/`:
 It refuses to write into a folder made with a different config, and after a crash it resumes
 by skipping the noise levels already finished.
 
-Config fields: `run_name`, `env_name`, `victim` / `opponent` (zoo agent versions),
-`victim_index`, `obs_stats` (noise scales), `sigmas` (noise levels), `episodes` (games per
-noise level), `num_envs` (games played in parallel), `seed` (games and action sampling),
-`noise_seed`. For a different experiment, copy a config, give it a new `run_name`, and edit it.
+Config fields: `run_name`, `env_name`, `victim` / `opponent`, `victim_index`, `obs_stats`
+(noise scales), `sigmas` (noise levels), `episodes` (games per noise level), `num_envs` (games
+played in parallel), `seed` (games and action sampling), `noise_seed`. For a different
+experiment, copy a config, give it a new `run_name`, and edit it.
+
+A `victim` or `opponent` is either a zoo agent, `{"type": "zoo", "path": "1"}` (Zoo1), or a
+fine-tuned victim from `models/`,
+`{"type": "finetuned", "path": "models/ants_defended/weights.pkl"}`. The victim also has a
+`label` (`zoo1`, `defended` or `finetuned_clean`), which names its line in the figures.
 
 Quick overrides for trying things out:
 
@@ -143,8 +156,32 @@ Then draw a figure from one or more result files:
 ./run.sh python -m noisebackup.plot results/ants_zoo1_original/episodes.csv --out results/scratch/ants.png
 ```
 
-Tip: commit finished results before starting the next sweep. `run_info.json` then records
-`git_dirty: false`, meaning the results came from committed code.
+`run_info.json` records `git_dirty: false` when the results came from committed code: no
+change to any tracked file, and no new file outside `models/` and `results/` (new files in
+those two folders are other runs' outputs, so sweeps can run back to back without a commit in
+between).
+
+## Re-train the defended victims (optional)
+
+The committed weights in `models/` are the defended victims we evaluated. To train them again
+(about 1 h 10 min per Ants run and 1 h 25 min per Humans run on our desktop):
+
+```bash
+./run.sh python -m noisebackup.finetune --config configs/finetune/humans_defended.json
+```
+
+The four training configs are in `configs/finetune/` (`{ants,humans}_{defended,finetuned_clean}`).
+Each run writes `models/<run_name>/`:
+- `weights.pkl`: the fine-tuned policy, in the same format as the zoo's own parameter files
+- `training_info.json`: config, git commit, `git_dirty`, timing
+- `training_episodes.csv`: one row per training game (when it ended, its σ, winner, length)
+
+It refuses to write into an existing folder, so move or delete the committed one first (or
+use `--out DIR`). For a quick test, `--timesteps 100000` trains for fewer steps and writes to
+`results/scratch/models/` instead.
+
+Training is seeded on a best-effort basis, so a re-trained victim will be similar but not
+identical to the committed one, and its sweep results will differ within error.
 
 ## Experiment design (round 1: attack)
 
@@ -158,14 +195,37 @@ Tip: commit finished results before starting the next sweep. `run_info.json` the
 | Games per point | 1,000 (8 parallel games × 125 each) |
 | Metric | victim win rate = wins ÷ all games, Wilson 95% intervals; tie rate shown separately |
 
+## Experiment design (round 2: defense)
+
+| Setting | Value |
+|---|---|
+| Defended victim | Zoo1 (agent 0) fine-tuned from its own weights, against the frozen Zoo1 opponent |
+| Noise during training | a new σ ~ Uniform[0, 1] for every training game, same noise formula and `stdᵢ` as round 1 |
+| Control victim | fine-tuned identically with σ = 0, to separate "noise helped" from "extra training helped" |
+| Reward | win/loss only (+10 win; −10 loss, timeout, or falling before contact; 0 if the opponent falls before contact), with PPO's reward scaling |
+| Training | PPO (Stable Baselines PPO2), 10M steps, the paper's fine-tuning settings: 16 parallel games, batch 16,384, lr 3e-4, 4 minibatches, 4 epochs |
+| Evaluation | the round-1 sweep, unchanged, on the final weights |
+
+**A bug in `gym_compete`'s LSTM policy, fixed here.** When PPO trains on several games at once,
+it hands the network a batch laid out game by game. The zoo LSTM policy reads it that way but
+returns its outputs time step by time step, so each action was scored against a different
+game's output. PPO's `approxkl` was ~1,000 before any learning (it should be ~0), and training
+wrecked the victims. `noisebackup/finetune.py` reorders the outputs while building the training
+model, and a test checks that with learning rate 0 the first update has `approxkl` ≈ 0. Playing
+one step at a time (sweeps, opponents) is unaffected. The paper's code uses the same policy
+class and settings.
+
 ## Layout
 
 ```
-noisebackup/          package: obs_stats, noise, evaluate, sweep, plot
+noisebackup/          package: obs_stats, noise, evaluate, sweep, plot, weights,
+                      finetune, training_curves
 tests/                pytest; slow tests (real games) marked @pytest.mark.slow
-configs/              one JSON config per sweep
+configs/              one JSON config per sweep; configs/finetune/ one per training run
+models/               fine-tuned victims: weights, training record and log per run, committed
 results/              raw results (one row per game) and observation stats, committed
-figures/              generated from results/
+figures/              generated from results/ and models/
 run.sh                runs any command inside the container
 reproduce_attack.sh   re-runs the round-1 attack sweeps and draws the figure
+reproduce_defense.sh  re-runs the round-2 defense sweeps from models/ and draws the figures
 ```
