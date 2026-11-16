@@ -95,8 +95,13 @@ What the scripts do:
   which git ignores.
 - **Warns about code changes.** If the experiment code (`noisebackup/`) or the noise scales
   (`results/obs_stats/`), or for the defense the victim weights (`models/`), have changed
-  since the commit that produced the committed results, it prints a warning and the
-  `git checkout` command for an exact reproduction.
+  since the commit that produced the committed results, it prints a warning listing the
+  changed files. If only plotting code changed (`plot.py`, `training_curves.py`), the games
+  are unaffected and the numbers should still match exactly. Otherwise the warning prints
+  three commands for an exact reproduction: roll those folders back to the old commit, re-run
+  that one sweep into `results/scratch/exact/`, and restore them. Compare the resulting
+  `episodes.csv` with the committed one. Commit or stash any uncommitted changes in those
+  folders first: the restore step brings back the committed versions.
 
 **Expect exactly the same games on the same machine, and the same results within error on a
 different one.** Every source of randomness is seeded: starting positions, the agents' action

@@ -20,12 +20,20 @@ for run in "${RUNS[@]}"; do
     commit=$(./run.sh python -c \
         "import json; print(json.load(open('${run}/run_info.json'))['invocations'][0]['git_commit'])")
     # Code or noise scales changed since then (committed or not)? Then differences may come from
-    # that change rather than from the machine.
+    # that change rather than from the machine. List the changed files, so a reader can tell
+    # whether they matter (e.g. only plotting code changed: the games are unaffected).
     if ! git diff --quiet "${commit}" -- noisebackup results/obs_stats; then
-        echo "WARNING: ${run} was produced at commit ${commit:0:7}, and noisebackup/ or"
-        echo "         results/obs_stats/ has changed since. Differences may come from that"
-        echo "         change, not just the machine. For an exact reproduction, first run:"
-        echo "             git checkout ${commit:0:7}"
+        echo "WARNING: ${run} was produced at commit ${commit:0:7}, and these files have"
+        echo "         changed since:"
+        git diff --stat "${commit}" -- noisebackup results/obs_stats | sed 's/^/         /'
+        echo "         If any of them affects the games (not just plotting), differences may"
+        echo "         come from that change, not just the machine. For an exact reproduction,"
+        echo "         re-run this sweep with those files rolled back, then restore them:"
+        echo "         (commit or stash any uncommitted changes there first; the last command"
+        echo "         restores the committed versions)"
+        echo "             git checkout ${commit:0:7} -- noisebackup results/obs_stats"
+        echo "             ./run.sh python -m noisebackup.sweep --config ${run}/config.json --out results/scratch/exact/$(basename "${run}")"
+        echo "             git checkout HEAD -- noisebackup results/obs_stats"
     fi
     echo "Reproducing ${run} (code from commit ${commit:0:7}) ..."
     ./run.sh python -m noisebackup.sweep --config "${run}/config.json" \
