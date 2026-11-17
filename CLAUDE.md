@@ -13,7 +13,8 @@ simple, readable code over clever code.
 3. Design one meaningful extension, make a prediction **before** running it, and analyze it.
 4. Deliver an IEEE-style report, code, and a 10–15 minute presentation (Nov 30 / Dec 2).
 
-Data collection for the backup is planned for the week of Nov 23–29.
+Data collection for the backup was planned for the week of Nov 23–29 and finished early, on
+Nov 16 (round 1: Nov 11; round 2: Nov 16).
 
 ## The paper
 
