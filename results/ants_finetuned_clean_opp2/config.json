@@ -1,0 +1,29 @@
+{
+  "run_name": "ants_finetuned_clean_opp2",
+  "threat_model": "direct observation: Gaussian noise added to the victim's observations",
+  "env_name": "multicomp/SumoAnts-v0",
+  "victim": {
+    "label": "finetuned_clean",
+    "type": "finetuned",
+    "path": "models/ants_finetuned_clean/weights.pkl"
+  },
+  "opponent": {
+    "type": "zoo",
+    "path": "2"
+  },
+  "victim_index": 0,
+  "obs_stats": "results/obs_stats/SumoAnts.json",
+  "sigmas": [
+    0.0,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.0
+  ],
+  "episodes": 1000,
+  "num_envs": 8,
+  "seed": 0,
+  "noise_seed": 1
+}

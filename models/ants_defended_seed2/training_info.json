@@ -1,0 +1,42 @@
+{
+  "config": {
+    "run_name": "ants_defended_seed2",
+    "threat_model": "direct observation: noise added to the victim's observations during training",
+    "env_name": "multicomp/SumoAnts-v0",
+    "victim": {
+      "type": "zoo",
+      "path": "1"
+    },
+    "opponent": {
+      "type": "zoo",
+      "path": "1"
+    },
+    "victim_index": 0,
+    "obs_stats": "results/obs_stats/SumoAnts.json",
+    "sigma_range": [
+      0.0,
+      1.0
+    ],
+    "total_timesteps": 10000000,
+    "num_envs": 16,
+    "seed": 2000,
+    "noise_seed": 2001,
+    "ppo": {
+      "batch_size": 16384,
+      "learning_rate": 0.0003,
+      "ent_coef": 0.0,
+      "nminibatches": 4,
+      "noptepochs": 4,
+      "cliprange": 0.2,
+      "gamma": 0.99,
+      "lam": 0.95
+    }
+  },
+  "started_at": "2026-11-22T10:11:54",
+  "finished_at": "2026-11-22T11:20:18",
+  "git_commit": "3452ab88fae5d05e501064329befdc9fe5231b7f",
+  "git_dirty": true,
+  "timesteps": 9994240,
+  "training_seconds": 4100.8,
+  "steps_per_second": 2437.1
+}

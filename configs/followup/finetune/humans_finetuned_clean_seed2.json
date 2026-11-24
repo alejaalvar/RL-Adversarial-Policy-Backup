@@ -1,0 +1,33 @@
+{
+  "run_name": "humans_finetuned_clean_seed2",
+  "threat_model": "direct observation: noise added to the victim's observations during training",
+  "env_name": "multicomp/SumoHumans-v0",
+  "victim": {
+    "type": "zoo",
+    "path": "1"
+  },
+  "opponent": {
+    "type": "zoo",
+    "path": "1"
+  },
+  "victim_index": 0,
+  "obs_stats": "results/obs_stats/SumoHumans.json",
+  "sigma_range": [
+    0.0,
+    0.0
+  ],
+  "total_timesteps": 10000000,
+  "num_envs": 16,
+  "seed": 2000,
+  "noise_seed": 2001,
+  "ppo": {
+    "batch_size": 16384,
+    "learning_rate": 0.0003,
+    "ent_coef": 0.0,
+    "nminibatches": 4,
+    "noptepochs": 4,
+    "cliprange": 0.2,
+    "gamma": 0.99,
+    "lam": 0.95
+  }
+}
