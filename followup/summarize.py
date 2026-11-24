@@ -3,7 +3,8 @@
 For every follow-up sweep (configs/followup/*.json): victim win rate with Wilson 95% interval at
 each sigma, and the difference from the matching committed run (training seed 1000, 10M steps,
 opponent Zoo1) with a two-sided two-proportion z test (pooled, as in the PREDICTIONS.md
-addendum). A Holm correction runs over the addendum's 42 comparisons plus all the new ones.
+addendum). Also, within each follow-up condition, the noise-trained victim vs. the control.
+A Holm correction runs over the addendum's 42 comparisons plus all the new ones (both kinds).
 Failed or missing runs are listed from results/followup/status.tsv and the results folders.
 
 Threat model: direct observation (noise added straight to the victim's observations).
@@ -24,6 +25,8 @@ from statsmodels.stats.proportion import proportion_confint
 
 GAMES = {"ants": "Sumo Ants", "humans": "Sumo Humans"}
 VICTIMS = ["zoo1_original", "defended", "finetuned_clean"]
+# Comparison families, all in one Holm correction.
+ADDENDUM, VS_COMMITTED, WITHIN = "addendum", "vs. committed", "within condition"
 # The addendum's 42 comparisons: these three pairs, at each of 7 sigmas, in both games.
 PAPER_PAIRS = [
     ("defended", "finetuned_clean"),
@@ -79,23 +82,33 @@ def base_run(run_name):
 
 
 def comparisons(results_dir, configs):
-    """All comparisons: the addendum's 42, then each follow-up sweep vs. its committed run."""
+    """All comparisons: the addendum's 42; each follow-up sweep vs. its committed run; and,
+    within each follow-up condition, noise-trained vs. control. Holm runs over all of them."""
     rows = []
     for game in GAMES:
         runs = {v: load_wins(results_dir, f"{game}_{v}") for v in VICTIMS}
         for a, b in PAPER_PAIRS:
             for sigma in sorted(runs[a]):
                 rows.append(
-                    compare("addendum", f"{game}_{a}", runs[a], f"{game}_{b}", runs[b], sigma)
+                    compare(ADDENDUM, f"{game}_{a}", runs[a], f"{game}_{b}", runs[b], sigma)
                 )
+    complete = {}
     for run_name, config in configs.items():
         new = load_wins(results_dir, run_name, config)
         if new is None:
             continue
+        complete[run_name] = new
         base, _ = base_run(run_name)
         committed = load_wins(results_dir, base)
         for sigma in sorted(new):
-            rows.append(compare("follow-up", run_name, new, base, committed, sigma))
+            rows.append(compare(VS_COMMITTED, run_name, new, base, committed, sigma))
+    # Added 2026-11-24, after the results were in: does the defense still beat the control?
+    for suffix, _, _ in GROUPS:
+        for game in GAMES:
+            a, b = f"{game}_defended{suffix}", f"{game}_finetuned_clean{suffix}"
+            if a in complete and b in complete:
+                for sigma in sorted(complete[a]):
+                    rows.append(compare(WITHIN, a, complete[a], b, complete[b], sigma))
     table = pd.DataFrame(rows)
     reject, p_holm, _, _ = multipletests(table["p"], alpha=0.05, method="holm")
     table["p_holm"] = p_holm
@@ -129,7 +142,8 @@ def fmt_p(p):
 
 
 def sweep_table(run_name, table):
-    rows = table[table["a"] == run_name].sort_values("sigma")
+    rows = table[(table["family"] == VS_COMMITTED) & (table["a"] == run_name)]
+    rows = rows.sort_values("sigma")
     lines = [
         "| σ | wins / games | win rate [95% CI] | committed | difference (points) | p | Holm p |",
         "|---|---|---|---|---|---|---|",
@@ -142,6 +156,21 @@ def sweep_table(run_name, table):
             f"| {pct(r['wins_a'] / r['n_a'])}% [{pct(low)}, {pct(high)}] "
             f"| {pct(r['wins_b'] / r['n_b'])}% | {100 * r['diff']:+.1f} "
             f"| {fmt_p(r['p'])} | {fmt_p(r['p_holm'])}{star} |"
+        )
+    return lines
+
+
+def within_table(rows):
+    """Noise-trained vs. control in one condition and game, one row per sigma."""
+    lines = [
+        "| σ | noise-trained | control | gap (points) | p | Holm p |",
+        "|---|---|---|---|---|---|",
+    ]
+    for _, r in rows.sort_values("sigma").iterrows():
+        star = " ✱" if r["significant"] else ""
+        lines.append(
+            f"| {r['sigma']:g} | {pct(r['wins_a'] / r['n_a'])}% | {pct(r['wins_b'] / r['n_b'])}% "
+            f"| {100 * r['diff']:+.1f} | {fmt_p(r['p'])} | {fmt_p(r['p_holm'])}{star} |"
         )
     return lines
 
@@ -195,8 +224,8 @@ def report(results_dir, configs_dir, status_path):
     order = {suffix: i for i, (suffix, _, _) in enumerate(GROUPS)}
     configs = dict(sorted(configs.items(), key=lambda kv: (order[base_run(kv[0])[1]], kv[0])))
     table = comparisons(results_dir, configs)
-    n_paper = int((table["family"] == "addendum").sum())
-    n_new = len(table) - n_paper
+    counts = table["family"].value_counts()
+    n_paper, n_committed, n_within = (counts.get(f, 0) for f in (ADDENDUM, VS_COMMITTED, WITHIN))
     commit = (
         subprocess.run(["git", "rev-parse", "--short", "HEAD"], stdout=subprocess.PIPE, check=False)
         .stdout.decode()
@@ -219,7 +248,10 @@ def report(results_dir, configs_dir, status_path):
         "two-proportion z test, as in the PREDICTIONS.md addendum.",
         f"- *Holm p*: Holm-corrected over **{len(table)} comparisons**: the addendum's "
         f"{n_paper} (noise-trained vs. control, noise-trained vs. Zoo1, control vs. Zoo1, at "
-        f"each σ in both games) plus {n_new} new ones. ✱ = significant at 0.05 after correction.",
+        f"each σ in both games), {n_committed} follow-up sweeps vs. their committed runs, and "
+        f"{n_within} noise-trained vs. control within each follow-up condition (section 4; "
+        "added to the correction on 2026-11-24, after the results were in). ✱ = significant at "
+        "0.05 after correction.",
         "- For the held-out opponents, the difference measures the *opponent* change (the "
         "victim is the same), so a drop means Zoo2/Zoo3 is a harder opponent for that victim.",
         "",
@@ -235,10 +267,24 @@ def report(results_dir, configs_dir, status_path):
         out += [f"## {title}", "", note, ""]
         for run_name in runs:
             out += [f"### {run_name} (vs. {base_run(run_name)[0]})", ""]
-            if (table["a"] == run_name).any():
+            if ((table["family"] == VS_COMMITTED) & (table["a"] == run_name)).any():
                 out += sweep_table(run_name, table)
             else:
                 out += ["No complete results (see above)."]
+            out += [""]
+
+    out += [
+        "## 4. Noise-trained vs. control within each condition",
+        "",
+        "Does the defense still beat the control? Both victims from the same condition, at each σ.",
+        "",
+    ]
+    within = table[table["family"] == WITHIN]
+    for suffix, title, _ in GROUPS:
+        for game, game_title in GAMES.items():
+            rows = within[within["a"] == f"{game}_defended{suffix}"]
+            out += [f"### {title[3:]}: {game_title}", ""]
+            out += within_table(rows) if len(rows) else ["No complete results (see above)."]
             out += [""]
 
     out += [

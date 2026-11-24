@@ -131,13 +131,14 @@ in `followup/` (`run_followups.sh` runner, `summarize.py` → `results/followup_
   swept vs. Zoo1 with the round-1 sweep unchanged. Run at 3452ab8; all runs record
   `git_dirty: true` only because the follow-up configs and scripts were uncommitted (listed in
   `results/followup/run.log`).
-- **Statistics:** each new sweep vs. its committed run (pooled two-proportion z test, as in the
-  addendum); Holm over 182 comparisons = the addendum's 42 (noise-trained vs. control,
-  noise-trained vs. Zoo1, control vs. Zoo1 × 7 σ × 2 games) + 140 new. The noise-trained −
-  control gap *within* each new condition is not in that family (report it as uncorrected).
+- **Statistics:** pooled two-proportion z tests, as in the addendum. Holm over 238 comparisons
+  = the addendum's 42 (noise-trained vs. control, noise-trained vs. Zoo1, control vs. Zoo1 ×
+  7 σ × 2 games) + 140 (each new sweep vs. its committed run) + 56 (noise-trained vs. control
+  *within* each new condition). The 56 were added on 2026-11-24, after the results were in
+  (only makes the bar stricter); PREDICTIONS.md says so.
 - **Findings:**
-  - The Humans σ = 1 gain over the control replicates vs. Zoo1 (seed 2: +5.8; 20M: +10.8) and
-    survives Holm (+10.5, Holm p 3e-9).
+  - The Humans σ = 1 gain over the control replicates vs. Zoo1 and survives Holm in all three
+    runs: +10.5 (Holm p 4e-9), seed 2 +5.8 (0.047, just), 20M +10.8 (2e-9).
   - It mostly vanishes vs. held-out opponents (Zoo2 −0.4, Zoo3 +4.1). Zoo2 and Zoo3 beat
     every Humans victim: clean win rate ~82% → 13–22%. Cross-checked with
     `aprl.score_agent` (Zoo1 vs Zoo2: 29/200 wins), so the 82% baseline is specific to the

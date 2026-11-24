@@ -551,3 +551,48 @@ to opponents it had not trained against. Limits:
 - The threat model is still direct observation.
 - Two seeds are better than one, but still few.
 - The within-condition gaps after the first row of each table are uncorrected.
+
+### 2026-11-24 (later): Holm correction extended to the within-condition comparisons
+
+**What changed.** The note above corrected 182 comparisons. That left out the comparisons it
+leans on most: noise-trained vs. control *within* each follow-up condition (the "gap" tables in
+its section 2). Those 56 (4 conditions × 7 σ × 2 games) are now in the same Holm correction,
+which covers **238 comparisons**.
+- They were added after the results were in. Adding comparisons only makes the bar stricter
+  for everything already in the family, so this can't make an earlier result look better.
+- Every raw p-value is unchanged. Only the Holm p-values moved.
+- Figures are unchanged. Full tables: `results/followup_summary.md`, section 4.
+
+**Within-condition gaps that survive** (13 of 56):
+
+| Game | Condition | σ | Gap (points) | Holm p |
+|---|---|---|---|---|
+| Humans | 20M steps, vs Zoo1 | 1 | +10.8 | 2e-9 |
+| Humans | 20M steps, vs Zoo1 | 0.5 | +9.9 | 0.001 |
+| Humans | second seed, vs Zoo1 | 1 | +5.8 | 0.047 |
+| Humans | held-out Zoo3 | 1 | +4.1 | 0.004 |
+| Humans | held-out Zoo2 | 0, 0.05, 0.1 | −6.9 to −9.7 | ≤ 0.011 |
+| Humans | held-out Zoo3 | 0, 0.05, 0.1, 0.25 | −8.7 to −12.4 | ≤ 6e-5 |
+| Ants | held-out Zoo2 | 0, 0.05 | +10.2, +9.6 | ≤ 0.002 |
+
+**What this changes in the note above.**
+- **Humans σ = 1 now holds after correction in all three runs against Zoo1:** the original
+  +10.5 (Holm p 4e-9), the second seed +5.8 (Holm p 0.047, only just), and 20M steps +10.8.
+  Finding 1 is now corrected evidence, not uncorrected.
+- **Against Zoo3, the σ = 1 gain (+4.1) also survives.** Against Zoo2 there is still no gain
+  (−0.4). So "mostly does not transfer" (finding 2) stands, but against Zoo3 a small gain
+  remains.
+- **Against held-out opponents, the noise-trained Humans victim is worse than the control at
+  low noise** (σ ≤ 0.1 vs Zoo2, σ ≤ 0.25 vs Zoo3), and this survives correction. That's
+  stronger support for the "tuned to its training opponent" hypothesis, which is still
+  untested as an explanation.
+- **The σ = 0.5 Humans gain survives at 20M steps** (+9.9), but not with the second seed (+6.6,
+  Holm p 0.51) or in the original run (+5.3). "Probably real but modest" still fits.
+- **Ants: one new surviving result.** Against Zoo2 with no or little noise (σ = 0, 0.05), the
+  noise-trained victim beats the control by about 10 points. It doesn't appear against Zoo3
+  (+4.0, Holm p 1) or at higher noise, so it's a single-condition result, not evidence of a
+  defense. The Zoo3 σ = 1 Ants gap (+4.8) does not survive (Holm p 0.65). "No consistent
+  benefit in Ants" stands.
+- **Unchanged:** the 9 surviving comparisons from the 2026-11-16 note, the 36 surviving
+  held-out-opponent drops, and the corrections in section 3 of the note above (the Humans
+  clean cost and the original σ = 0.5 gain still don't survive).

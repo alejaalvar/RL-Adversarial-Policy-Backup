@@ -236,8 +236,9 @@ The outputs use the committed run name plus a suffix (`_opp2`, `_opp3`, `_seed2`
 `models/` and `results/`.
 
 What they showed, and what they change in the earlier results, is in the dated addendum
-"2026-11-24: Follow-up experiments" in `PREDICTIONS.md`. The full tables, with a Holm
-correction over all 182 comparisons, are in `results/followup_summary.md`.
+"2026-11-24: Follow-up experiments" in `PREDICTIONS.md` (and the Holm update after it). The
+full tables, with a Holm correction over all 238 comparisons, are in
+`results/followup_summary.md`.
 `figures/followup_checks.png` shows the noise-trained − control gap at σ = 0 and σ = 1 in every
 condition.
 
