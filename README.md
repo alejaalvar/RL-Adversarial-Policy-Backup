@@ -220,15 +220,65 @@ model, and a test checks that with learning rate 0 the first update has `approxk
 one step at a time (sweeps, opponents) is unaffected. The paper's code uses the same policy
 class and settings.
 
+## Follow-up experiments
+
+Three checks on the round-2 caveats, run after the main results (Nov 21–22). They were not
+part of `PREDICTIONS.md`, so treat them as follow-up, not as tested predictions.
+
+| Experiment | What changes | Runs |
+|---|---|---|
+| Held-out opponents | the six committed victims (Zoo1, noise-trained, control) vs. Zoo2 and Zoo3 instead of Zoo1 | 12 sweeps |
+| Second training seed | training seed 2000 / noise seed 2001 instead of 1000 / 1001, then swept vs. Zoo1 | 4 trainings + 4 sweeps |
+| Longer training | 20M PPO steps instead of 10M (from Zoo1, same seeds), then swept vs. Zoo1 | 4 trainings + 4 sweeps |
+
+Everything else matches rounds 1 and 2: same σ grid, 1,000 games per point, same sweep seeds.
+The outputs use the committed run name plus a suffix (`_opp2`, `_opp3`, `_seed2`, `_20M`), in
+`models/` and `results/`.
+
+What they showed, and what they change in the earlier results, is in the dated addendum
+"2026-11-24: Follow-up experiments" in `PREDICTIONS.md`. The full tables, with a Holm
+correction over all 182 comparisons, are in `results/followup_summary.md`.
+`figures/followup_checks.png` shows the noise-trained − control gap at σ = 0 and σ = 1 in every
+condition.
+
+**Re-running.** All 20 sweeps and 8 trainings, in order, then the summary (about 19 hours):
+
+```bash
+setsid nohup followup/run_followups.sh < /dev/null > /dev/null 2>&1 &
+tail -f results/followup/run.log          # progress
+cat results/followup/status.tsv           # one line per finished step: OK, FAILED or SKIPPED
+```
+
+- Like the other scripts, it refuses to overwrite: sweeps resume, and trainings with a
+  `weights.pkl` are skipped. So to re-run, move the committed follow-up folders aside first.
+- If `noisebackup/`, `results/obs_stats/` or `models/` change while it runs, the remaining steps
+  are skipped rather than mixing code versions.
+- Stay logged in (locking the screen is fine): logging out completely may stop rootless
+  podman, unless lingering is on (`loginctl enable-linger`).
+
+Afterwards, redraw the summary and the figure (seconds each):
+
+```bash
+./run.sh python followup/summarize.py      # -> results/followup_summary.md
+./run.sh python followup/plot_checks.py    # -> figures/followup_checks.png
+```
+
+The committed follow-up runs record `git_dirty: true`: the follow-up configs and scripts were
+not committed yet while they ran. `noisebackup/` was unchanged at commit 3452ab8, and
+`results/followup/run.log` lists exactly which files were uncommitted.
+
 ## Layout
 
 ```
 noisebackup/          package: obs_stats, noise, evaluate, sweep, plot, weights,
                       finetune, training_curves
 tests/                pytest; slow tests (real games) marked @pytest.mark.slow
-configs/              one JSON config per sweep; configs/finetune/ one per training run
+configs/              one JSON config per sweep; configs/finetune/ one per training run;
+                      configs/followup/ the follow-up runs
+followup/             follow-up runner, summary and figure scripts
 models/               fine-tuned victims: weights, training record and log per run, committed
-results/              raw results (one row per game) and observation stats, committed
+results/              raw results (one row per game) and observation stats, committed;
+                      results/followup/ the follow-up step log, followup_summary.md its summary
 figures/              generated from results/ and models/
 run.sh                runs any command inside the container
 reproduce_attack.sh   re-runs the round-1 attack sweeps and draws the figure

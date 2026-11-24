@@ -427,3 +427,127 @@ and mechanism, but wrong about Ants and about the size of the effects.
 - We fixed it, added a test, and re-trained from scratch (2026-11-13). Every result above
   comes from the re-trained victims. The predictions were committed before either training.
   Details: README, "A bug in `gym_compete`'s LSTM policy".
+
+### 2026-11-24: Follow-up experiments (held-out opponents, second seed, 20M steps)
+
+**What and why.** Three checks on the caveats in the 2026-11-16 note, run Nov 21–22. None of
+them was predicted, so they are follow-up results, not tests of P1–P15.
+- **Held-out opponents:** the six committed victims against Zoo2 and Zoo3 instead of Zoo1.
+  Tests the caveat "same opponent in training and evaluation".
+- **Second training seed:** all four fine-tuning runs again, with training seed 2000 / noise
+  seed 2001. Tests "one training run per variant".
+- **20M steps:** all four fine-tuning runs for 20M steps instead of 10M (from Zoo1, same
+  seeds). Tests "10M steps may be too short".
+
+Everything else is unchanged: σ grid, 1,000 games per point, sweep seeds. Raw tables:
+`results/followup_summary.md`. Figure: `figures/followup_checks.png`.
+
+**How to read this.** Same conventions as the 2026-11-16 note, plus:
+- **Gap** = noise-trained − control win rate in the same condition, in points. Only the
+  original gaps (first row of each table) belong to a Holm family (below). Every other
+  p-value here is **uncorrected**.
+- **Holm:** one correction over 182 comparisons: the 2026-11-16 note's 42 (noise-trained vs.
+  control, noise-trained vs. Zoo1, control vs. Zoo1, at each σ in both games) plus 140 new
+  ones (each follow-up sweep vs. its committed run, at each σ).
+
+#### 1. Headline findings
+
+1. **The Humans defense effect is real against the training opponent.** At σ = 1 the
+   noise-trained victim beats the control with a second seed (+5.8) and with 20M steps
+   (+10.8), and the original +10.5 survives the Holm correction (Holm p = 3e-9).
+2. **It mostly does not transfer to new opponents.** Against Zoo2 the σ = 1 gap is −0.4;
+   against Zoo3 it is +4.1, near the floor (every victim wins under 7%).
+3. **Zoo2 and Zoo3 are much stronger than Zoo1 in Sumo Humans.** Every Humans victim's clean
+   win rate falls from ~82% to 13–22%. So the 82% baseline belonged to the Zoo1-vs-Zoo1
+   matchup, not to Sumo Humans in general.
+4. **The defense still does nothing consistent in Sumo Ants**, and the fine-tuning drop below
+   Zoo1 replicates with the second seed.
+5. **Two results from the 2026-11-16 note are not robust** (see section 3): the Humans
+   clean-performance cost (headline 4, P9) and the Humans σ = 0.5 gain (P10).
+
+#### 2. Results
+
+**Sumo Humans: gap at σ = 0, 0.5 and 1** (win rates: noise-trained / control)
+
+| Condition | σ = 0 | σ = 0.5 | σ = 1 |
+|---|---|---|---|
+| Original (seed 1, 10M, vs Zoo1) | −4.7 (81.5 / 86.2) | +5.3 (59.9 / 54.6) | **+10.5** (19.6 / 9.1) |
+| Second seed, vs Zoo1 | −1.1 (81.8 / 82.9) | +6.6, p = 0.003 | **+5.8** (17.7 / 11.9), p = 3e-4 |
+| 20M steps, vs Zoo1 | −2.8 (86.8 / 89.6), p = 0.05 | +9.9, p = 7e-6 | **+10.8** (20.3 / 9.5), p = 1e-11 |
+| Held-out Zoo2 | −6.9 (14.6 / 21.5), p = 6e-5 | −3.4, p = 0.02 | −0.4 (4.3 / 4.7), p = 0.67 |
+| Held-out Zoo3 | −8.7 (13.2 / 21.9), p = 3e-7 | −2.9, p = 0.05 | +4.1 (6.9 / 2.8), p = 2e-5 |
+
+- **Against Zoo1, the σ = 1 gain replicates.** With the second seed it is about half the
+  size, so training luck moves it by several points, but both seeds agree on the direction.
+  Longer training doesn't change it.
+- **The σ = 0.5 gain grows with training** (+5.3 → +9.9) and replicates with the second seed.
+- **Against Zoo2 and Zoo3, the noise-trained victim is worse with no noise** (−7 to −9) and
+  at σ = 0.5. Its gain at σ = 1 is gone (Zoo2) or small (Zoo3).
+  - **Hypothesis:** noise training tuned the victim to the one opponent it trained against.
+    It learned a more cautious style that pays off against Zoo1 under noise, and that style
+    costs it against stronger, unfamiliar opponents. Untested.
+- **Cross-check for the Zoo2 result.** The original `aprl.score_agent` gives Zoo1 vs Zoo2
+  29/200 wins (14.5%), matching our 18.4% within error. So the drop isn't a bug in our
+  pipeline.
+
+**Sumo Ants: gap at σ = 0, 0.5 and 1**
+
+| Condition | σ = 0 | σ = 0.5 | σ = 1 |
+|---|---|---|---|
+| Original (seed 1, 10M, vs Zoo1) | +1.4 | +1.6 | −1.1 |
+| Second seed, vs Zoo1 | −3.0 | −0.7 | −1.4 |
+| 20M steps, vs Zoo1 | −6.8, p = 0.002 | −2.9 | −0.1 |
+| Held-out Zoo2 | +10.2, p = 3e-6 | +4.4, p = 0.04 | 0.0 |
+| Held-out Zoo3 | +4.0 | +4.3, p = 0.04 | +4.8, p = 0.004 |
+
+- **No consistent pattern.** The signs change from condition to condition, and only one σ = 1
+  gap differs from zero (Zoo3, uncorrected p = 0.004).
+- **The fine-tuning drop replicates.** Clean win rates with the second seed: 35.9%
+  (noise-trained) and 38.9% (control), vs. 46.2% for Zoo1.
+- **20M steps didn't fix it.** The control recovered partly (42.1%); the noise-trained victim
+  didn't (35.3%).
+  - This doesn't fit the 2026-11-16 hypothesis well, a weak learning signal making both
+    victims drift downhill. The hypothesis stays untested.
+- Zoo2 and Zoo3 are about as strong as Zoo1 in Ants (Zoo1 victim, clean: 47.8% and 44.3% vs.
+  46.2%).
+
+**What survives the Holm correction**
+- From the 2026-11-16 note's 42 comparisons, 9 survive:
+  - Humans noise-trained − control at σ = 1: +10.5.
+  - Humans noise-trained − Zoo1 at σ = 0.5 (+13.8) and σ = 1 (+9.7).
+  - Humans control − Zoo1 at σ = 0.25 (+7.9) and σ = 0.5 (+8.5).
+  - Ants noise-trained − Zoo1 at σ = 0 (−8.4) and σ = 0.1 (−10.1).
+  - Ants control − Zoo1 at σ = 0 (−9.8) and σ = 0.1 (−8.6).
+- From the 140 new ones, only the 36 Humans held-out-opponent drops survive (all six victims,
+  both opponents, σ ≤ 1). They measure how strong Zoo2 and Zoo3 are, not the defense.
+- No second-seed or 20M comparison with its committed run survives. The largest is the 20M
+  Humans noise-trained victim at σ = 0: +5.3 over the 10M one, raw p = 0.001, Holm p = 0.16.
+
+#### 3. Corrections to the 2026-11-16 note
+
+That note is unchanged above; these points supersede it.
+- **Headline 4 and P9 (Humans): the clean-performance cost is not established.** The −4.7
+  vs. the control (p = 0.004) has Holm p = 0.55. It shrinks to −1.1 with the second seed and
+  −2.8 with 20M steps. The longer games of the noise-trained victim (P9, P14) are still
+  measured, but they no longer come with a clear clean cost.
+- **P10 (Humans, σ = 0.5): weaker than "✅".** +5.3 has Holm p = 1, so the original run alone
+  doesn't establish it. The same direction appears with the second seed (+6.6) and 20M steps
+  (+9.9), so it is probably real but modest.
+- **P11 (Humans benefits more): ✅ against Zoo1 only.** Against the held-out opponents neither
+  game shows a dependable benefit.
+- **Caveats (section 4 of that note):**
+  - "One training run per variant": now two seeds. The Humans σ = 1 gain holds, but its size
+    varies (+5.8 to +10.5).
+  - "Same opponent in training and evaluation": confirmed as a real limitation (finding 2).
+  - "10M steps may be too short": doubling it left the σ = 1 gain unchanged and enlarged the
+    σ = 0.5 gain.
+
+#### 4. What this means for the claim
+
+Noise-augmented fine-tuning made the Sumo Humans victim more robust to Gaussian observation
+noise **against the opponent it was trained with**. That held across a second seed and
+longer training. It did not help Sumo Ants, and the Humans benefit largely did not carry over
+to opponents it had not trained against. Limits:
+- The threat model is still direct observation.
+- Two seeds are better than one, but still few.
+- The within-condition gaps after the first row of each table are uncorrected.

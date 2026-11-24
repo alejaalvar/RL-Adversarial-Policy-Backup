@@ -120,6 +120,38 @@ Round 2 is done (2026-11-16): `models/<run>/` trained at 3d84a9e, sweeps in
   entirely. Before this, back-to-back runs saw each other's new output folders and recorded
   dirty with unchanged code.
 
+### Follow-ups (2026-11-21/22)
+
+Not in PREDICTIONS.md; always label them "follow-up". Configs in `configs/followup/`, scripts
+in `followup/` (`run_followups.sh` runner, `summarize.py` → `results/followup_summary.md`,
+`plot_checks.py` → `figures/followup_checks.png`). Committed in 077868b (figure) and c79d075.
+- **What:** (1) the six committed victims vs. held-out opponents Zoo2 and Zoo3 (both exist for
+  both games; `_opp2` / `_opp3`); (2) second training seed 2000 / 2001 (`_seed2`); (3) 20M steps
+  from Zoo1 with the committed training configs (`--timesteps 20000000`, `_20M`). New victims
+  swept vs. Zoo1 with the round-1 sweep unchanged. Run at 3452ab8; all runs record
+  `git_dirty: true` only because the follow-up configs and scripts were uncommitted (listed in
+  `results/followup/run.log`).
+- **Statistics:** each new sweep vs. its committed run (pooled two-proportion z test, as in the
+  addendum); Holm over 182 comparisons = the addendum's 42 (noise-trained vs. control,
+  noise-trained vs. Zoo1, control vs. Zoo1 × 7 σ × 2 games) + 140 new. The noise-trained −
+  control gap *within* each new condition is not in that family (report it as uncorrected).
+- **Findings:**
+  - The Humans σ = 1 gain over the control replicates vs. Zoo1 (seed 2: +5.8; 20M: +10.8) and
+    survives Holm (+10.5, Holm p 3e-9).
+  - It mostly vanishes vs. held-out opponents (Zoo2 −0.4, Zoo3 +4.1). Zoo2 and Zoo3 beat
+    every Humans victim: clean win rate ~82% → 13–22%. Cross-checked with
+    `aprl.score_agent` (Zoo1 vs Zoo2: 29/200 wins), so the 82% baseline is specific to the
+    Zoo1-vs-Zoo1 matchup.
+  - Ants: no consistent benefit anywhere; the fine-tuning drop replicates with seed 2.
+  - After Holm, the addendum's Humans clean cost (−4.7) and σ = 0.5 gain (+5.3) are not
+    significant; don't present them as findings.
+- **Lessons:**
+  - `aprl.score_agent` (Sacred) writes `data/sacred/` in the repo. Delete it after a cross-check:
+    it is outside `models/` and `results/`, so it makes later runs dirty.
+  - `followup/` is not in `run.sh lint`'s paths (only `noisebackup` and `tests`); lint it by
+    hand. Its scripts have no tests; `summarize.py` was checked by reproducing the addendum's
+    p-values exactly.
+
 ## Predictions
 
 Must be written before running the full experiments, in `PREDICTIONS.md`, dated, and never
